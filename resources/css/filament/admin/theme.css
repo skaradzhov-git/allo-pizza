@@ -1,0 +1,33 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@config 'tailwind.config.js';
+
+.fi-fo-rich-editor .fi-fo-rich-editor-content {
+    min-height: 18rem;
+}
+
+.fi-fo-rich-editor .fi-fo-rich-editor-content trix-editor,
+.fi-fo-rich-editor .fi-fo-rich-editor-content .trix-content {
+    min-height: 16rem !important;
+}
+
+.fi-topbar-theme-switcher .fi-theme-switcher {
+    @apply rounded-lg bg-gray-50 p-1 ring-1 ring-gray-950/5 dark:bg-white/5 dark:ring-white/10;
+}
+
+.fi-form-actions .fi-btn.fi-color-primary,
+.fi-modal-footer-actions .fi-btn.fi-color-primary,
+.fi-page-actions .fi-btn.fi-color-primary,
+.fi-ta-actions .fi-btn.fi-color-primary {
+    @apply bg-primary-600 text-white shadow-sm hover:bg-primary-500 focus-visible:ring-primary-500/50 dark:bg-primary-500 dark:hover:bg-primary-400;
+}
+
+.fi-form-actions .fi-btn.fi-color-gray,
+.fi-modal-footer-actions .fi-btn.fi-color-gray,
+.fi-page-actions .fi-btn.fi-color-gray {
+    @apply bg-white text-gray-950 shadow-sm ring-1 ring-gray-950/10 hover:bg-gray-50 dark:bg-white/5 dark:text-white dark:ring-white/20 dark:hover:bg-white/10;
+}
+
+.new-order-accept-btn {
+    @apply flex w-full items-center justify-center rounded-xl bg-green-600 px-6 py-5 text-2xl font-bold uppercase tracking-wide text-white shadow-lg transition hover:bg-green-500 focus:outline-none focus:ring-4 focus:ring-green-500/40 disabled:opacity-60;
+}

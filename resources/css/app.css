@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+    [data-slider-track].is-dragging {
+        cursor: grabbing;
+        user-select: none;
+    }
+
+    [data-slider-track].is-dragging * {
+        cursor: grabbing;
+        user-select: none;
+    }
+}

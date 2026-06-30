@@ -1,0 +1,158 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Enums\DeliveryType;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentMethod;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\OrderResource;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Services\DeliveryService;
+use App\Services\OrderNotificationService;
+use App\Services\PromoService;
+use App\Services\StoreService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+
+class OrderController extends Controller
+{
+    public function __construct(
+        protected DeliveryService $deliveryService,
+        protected StoreService $storeService,
+        protected PromoService $promoService,
+        protected OrderNotificationService $orderNotificationService,
+    ) {}
+
+    public function store(Request $request): JsonResponse
+    {
+        if (! $this->storeService->isOpen()) {
+            return response()->json(['message' => 'В момента не приемаме поръчки.'], 422);
+        }
+
+        $validated = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'customer_email' => ['nullable', 'email', 'max:255'],
+            'customer_phone' => ['required', 'string', 'max:20'],
+            'delivery_type' => ['required', 'in:delivery,pickup'],
+            'delivery_address' => ['required_if:delivery_type,delivery', 'nullable', 'string'],
+            'delivery_lat' => ['nullable', 'numeric'],
+            'delivery_lng' => ['nullable', 'numeric'],
+            'payment_method' => ['required', 'in:cash_on_delivery,pay_at_store'],
+            'customer_note' => ['nullable', 'string', 'max:1000'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_variant_id' => ['required', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.note' => ['nullable', 'string', 'max:500'],
+            'promo_code' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $subtotal = 0;
+        $orderItems = [];
+
+        foreach ($validated['items'] as $itemData) {
+            $product = Product::query()->findOrFail($itemData['product_id']);
+            $variant = ProductVariant::query()
+                ->where('product_id', $product->id)
+                ->findOrFail($itemData['product_variant_id']);
+
+            $lineTotal = (float) $variant->price * $itemData['quantity'];
+            $subtotal += $lineTotal;
+
+            $orderItems[] = [
+                'product' => $product,
+                'variant' => $variant,
+                'quantity' => $itemData['quantity'],
+                'unit_price' => $variant->price,
+                'total_price' => $lineTotal,
+                'note' => $itemData['note'] ?? null,
+            ];
+        }
+
+        $deliveryType = DeliveryType::from($validated['delivery_type']);
+        $deliveryLat = isset($validated['delivery_lat']) ? (float) $validated['delivery_lat'] : null;
+        $deliveryLng = isset($validated['delivery_lng']) ? (float) $validated['delivery_lng'] : null;
+
+        $deliveryPrice = $deliveryType === DeliveryType::Delivery
+            ? $this->deliveryService->deliveryPrice($subtotal, $deliveryLat, $deliveryLng)
+            : 0;
+
+        if (! empty($validated['promo_code'])) {
+            $promo = $this->promoService->resolve($validated['promo_code']);
+
+            if (! $promo || ! $promo->isCurrentlyValid() || ! $promo->meetsMinimum($subtotal)) {
+                return response()->json(['message' => 'Невалиден промо код.'], 422);
+            }
+
+            $discount = $promo->discountFor($subtotal);
+        }
+
+        $order = Order::query()->create([
+            'order_number' => Order::generateOrderNumber(),
+            'customer_id' => $request->user()?->customer?->id,
+            'customer_name' => $validated['customer_name'],
+            'customer_email' => $validated['customer_email'] ?? null,
+            'customer_phone' => $validated['customer_phone'],
+            'delivery_type' => $deliveryType,
+            'delivery_address' => $validated['delivery_address'] ?? null,
+            'delivery_lat' => $validated['delivery_lat'] ?? null,
+            'delivery_lng' => $validated['delivery_lng'] ?? null,
+            'delivery_price' => $deliveryPrice,
+            'subtotal' => $subtotal,
+            'discount' => $discount,
+            'promo_code' => $promo?->code,
+            'total' => max(0, $subtotal - $discount) + $deliveryPrice,
+            'payment_method' => PaymentMethod::from($validated['payment_method']),
+            'status' => OrderStatus::New,
+            'customer_note' => $validated['customer_note'] ?? null,
+        ]);
+
+        if ($promo) {
+            $promo->increment('used_count');
+        }
+
+        foreach ($orderItems as $item) {
+            OrderItem::query()->create([
+                'order_id' => $order->id,
+                'product_id' => $item['product']->id,
+                'product_name' => $item['product']->name,
+                'variant_name' => $item['variant']->name.' '.$item['variant']->size_label,
+                'quantity' => $item['quantity'],
+                'unit_price' => $item['unit_price'],
+                'total_price' => $item['total_price'],
+                'note' => $item['note'],
+            ]);
+        }
+
+        $this->orderNotificationService->sendOrderCreated($order);
+
+        return (new OrderResource($order))
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    public function show(Request $request, Order $order): OrderResource
+    {
+        abort_unless($request->user()?->customer?->id === $order->customer_id, 403);
+
+        $order->load('items');
+
+        return new OrderResource($order);
+    }
+
+    public function myOrders(Request $request): AnonymousResourceCollection
+    {
+        $orders = Order::query()
+            ->where('customer_id', $request->user()->customer?->id)
+            ->latest()
+            ->with('items')
+            ->paginate(15);
+
+        return OrderResource::collection($orders);
+    }
+}

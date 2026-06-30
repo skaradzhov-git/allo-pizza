@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.docker
+!.env.example
+node_modules
+vendor
+storage/logs/*
+bootstrap/cache/*.php
+.phpunit.result.cache
+.docker/initialized
+docker-compose.override.yml

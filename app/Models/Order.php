@@ -1,0 +1,67 @@
+<?php
+
+namespace App\Models;
+
+use App\Enums\DeliveryType;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentMethod;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Order extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'order_number',
+        'customer_id',
+        'customer_name',
+        'customer_email',
+        'customer_phone',
+        'delivery_type',
+        'delivery_address',
+        'delivery_lat',
+        'delivery_lng',
+        'delivery_price',
+        'subtotal',
+        'discount',
+        'promo_code',
+        'total',
+        'payment_method',
+        'status',
+        'customer_note',
+        'admin_note',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'delivery_type' => DeliveryType::class,
+            'delivery_lat' => 'decimal:7',
+            'delivery_lng' => 'decimal:7',
+            'delivery_price' => 'decimal:2',
+            'subtotal' => 'decimal:2',
+            'discount' => 'decimal:2',
+            'total' => 'decimal:2',
+            'payment_method' => PaymentMethod::class,
+            'status' => OrderStatus::class,
+        ];
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public static function generateOrderNumber(): string
+    {
+        return 'ORD-'.now()->format('Ymd').'-'.strtoupper(substr(uniqid(), -6));
+    }
+}

@@ -1,0 +1,117 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pizzeria-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+      - node_modules:/var/www/html/node_modules
+    environment:
+      APP_NAME: "Allo! Pizza"
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      APP_TIMEZONE: Europe/Sofia
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: pizzeria_orders
+      DB_USERNAME: pizzeria
+      DB_PASSWORD: secret
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      FILESYSTEM_DISK: public
+      BROADCAST_CONNECTION: reverb
+      REVERB_APP_ID: "239125"
+      REVERB_APP_KEY: ti2bjkrxaoo0uchyrltm
+      REVERB_APP_SECRET: amu2d5o6zucstbk1kcbh
+      REVERB_HOST: reverb
+      REVERB_PORT: 8080
+      REVERB_SCHEME: http
+      VITE_REVERB_APP_KEY: ti2bjkrxaoo0uchyrltm
+      VITE_REVERB_HOST: localhost
+      VITE_REVERB_PORT: 8080
+      VITE_REVERB_SCHEME: http
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_FROM_ADDRESS: "hello@allopizza.local"
+      MAIL_FROM_NAME: "Allo! Pizza"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  mysql:
+    image: mysql:8.0
+    container_name: pizzeria-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: pizzeria_orders
+      MYSQL_USER: pizzeria
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: rootsecret
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootsecret"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: pizzeria-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pizzeria-reverb
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    environment:
+      APP_NAME: "Allo! Pizza"
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      APP_TIMEZONE: Europe/Sofia
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: pizzeria_orders
+      DB_USERNAME: pizzeria
+      DB_PASSWORD: secret
+      BROADCAST_CONNECTION: reverb
+      REVERB_APP_ID: "239125"
+      REVERB_APP_KEY: ti2bjkrxaoo0uchyrltm
+      REVERB_APP_SECRET: amu2d5o6zucstbk1kcbh
+      REVERB_HOST: localhost
+      REVERB_PORT: 8080
+      REVERB_SCHEME: http
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  vendor:
+  node_modules:
