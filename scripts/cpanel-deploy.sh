@@ -3,8 +3,43 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+PHP_BIN="${PHP:-}"
+
+if [ -z "$PHP_BIN" ]; then
+    for candidate in \
+        /opt/cpanel/ea-php83/root/usr/bin/php \
+        /opt/cpanel/ea-php82/root/usr/bin/php \
+        "$(command -v php || true)"
+    do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            version_id="$("$candidate" -r 'echo PHP_VERSION_ID;' 2>/dev/null || echo 0)"
+
+            if [ "$version_id" -ge 80200 ]; then
+                PHP_BIN="$candidate"
+                break
+            fi
+        fi
+    done
+fi
+
+if [ -z "$PHP_BIN" ]; then
+    echo "Could not find PHP 8.2 or newer. Set PHP=/path/to/php and run again." >&2
+    exit 1
+fi
+
+echo "==> Using PHP: $("$PHP_BIN" -v | awk 'NR == 1 { print $1, $2 }')"
+
 echo "==> Installing PHP dependencies"
-composer install --no-dev --optimize-autoloader --no-interaction
+if [ -f composer.phar ]; then
+    "$PHP_BIN" composer.phar install --no-dev --optimize-autoloader --no-interaction
+elif command -v composer >/dev/null 2>&1; then
+    composer install --no-dev --optimize-autoloader --no-interaction
+elif [ -f /opt/cpanel/composer/bin/composer ]; then
+    "$PHP_BIN" /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader --no-interaction
+else
+    echo "Composer was not found. Install Composer or ask hosting support to enable it." >&2
+    exit 1
+fi
 
 if command -v npm >/dev/null 2>&1; then
     echo "==> Building frontend assets"
@@ -16,12 +51,12 @@ else
 fi
 
 echo "==> Running database migrations"
-php artisan migrate --force
+"$PHP_BIN" artisan migrate --force
 
 echo "==> Linking storage"
-php artisan storage:link || true
+"$PHP_BIN" artisan storage:link || true
 
 echo "==> Caching Laravel bootstrap files"
-php artisan optimize
+"$PHP_BIN" artisan optimize
 
 echo "==> Deployment complete"
