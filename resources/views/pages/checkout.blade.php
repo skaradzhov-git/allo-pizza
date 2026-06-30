@@ -117,7 +117,11 @@
                      data-free-over="{{ $freeDeliveryOver ?? '' }}"
                      data-polygon='@json($zonePolygon)'
                      data-old-lat="{{ old('delivery_lat') }}"
-                     data-old-lng="{{ old('delivery_lng') }}"></div>
+                     data-old-lng="{{ old('delivery_lng') }}">
+                    <div class="flex h-full items-center justify-center bg-stone-100 px-4 text-center text-sm font-semibold text-stone-500">
+                        Зареждане на Google Maps...
+                    </div>
+                </div>
             </div>
 
             <div>
@@ -190,11 +194,9 @@
     </div>
 
     @push('scripts')
-        @if ($googleMapsKey)
-            <script src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&libraries=places&language=bg&region=BG" async defer></script>
-        @endif
         <script>
             (function () {
+                const hasGoogleMapsKey = @json(filled($googleMapsKey));
                 const subtotal = {{ (float) $subtotal }};
                 const discount = {{ (float) $discount }};
                 const deliveryEl = document.getElementById('summary-delivery');
@@ -224,6 +226,7 @@
                 let deliveryMarker = null;
                 let zonePolygon = null;
                 let deliveryMode = true;
+                let mapInitialized = false;
 
                 function formatMoney(value) {
                     return value.toFixed(2) + ' €';
@@ -290,6 +293,24 @@
 
                     zoneStatus.className = 'mt-2 text-sm text-green-700';
                     zoneStatus.textContent = 'Доставка — ' + formatMoney(insidePrice);
+                }
+
+                function showMapMessage(message, isError = true) {
+                    mapEl.innerHTML = `
+                        <div class="flex h-full items-center justify-center bg-stone-100 px-5 text-center text-sm font-semibold ${isError ? 'text-brand-600' : 'text-stone-500'}">
+                            ${message}
+                        </div>
+                    `;
+
+                    zoneStatus.classList.remove('hidden');
+                    zoneStatus.className = 'mt-2 text-sm ' + (isError ? 'text-brand-600' : 'text-stone-500');
+                    zoneStatus.textContent = message;
+                }
+
+                function showStatusMessage(message, isError = true) {
+                    zoneStatus.classList.remove('hidden');
+                    zoneStatus.className = 'mt-2 text-sm ' + (isError ? 'text-brand-600' : 'text-stone-500');
+                    zoneStatus.textContent = message;
                 }
 
                 function updateTotals() {
@@ -388,11 +409,15 @@
                 }
 
                 function initGoogleMap() {
+                    if (mapInitialized) {
+                        return;
+                    }
+
+                    mapInitialized = true;
+
                     if (typeof google === 'undefined' || !google.maps) {
-                        zoneStatus.classList.remove('hidden');
-                        zoneStatus.className = 'mt-2 text-sm text-brand-600';
-                        zoneStatus.textContent = 'Картата не е налична. Добавете GOOGLE_MAPS_API_KEY в .env.';
                         updateTotals();
+                        showMapMessage('Google Maps не се зареди. Проверете GOOGLE_MAPS_API_KEY и ограниченията за домейна.');
                         return;
                     }
 
@@ -461,37 +486,24 @@
                     });
 
                     const searchInput = document.getElementById('address-search');
-                    const autocomplete = new google.maps.places.Autocomplete(searchInput, {
-                        componentRestrictions: { country: 'bg' },
-                        fields: ['geometry', 'formatted_address'],
-                    });
-
-                    autocomplete.addListener('place_changed', () => {
-                        if (!deliveryMode) {
-                            return;
-                        }
-
-                        const place = autocomplete.getPlace();
-                        if (!place.geometry || !place.geometry.location) return;
-                        deliveryMarker.setVisible(true);
-                        setPoint(place.geometry.location.lat(), place.geometry.location.lng(), true);
-                        if (place.formatted_address) {
-                            addressField.value = place.formatted_address;
-                        }
-                    });
-
+                    const geocoder = new google.maps.Geocoder();
                     document.getElementById('address-search-btn').addEventListener('click', () => {
                         const q = searchInput.value.trim();
                         if (!q) return;
-                        const geocoder = new google.maps.Geocoder();
-                        geocoder.geocode({ address: q, componentRestrictions: { country: 'BG' } }, (results, status) => {
-                            if (status !== 'OK' || !results?.length) return;
+
+                        geocoder.geocode({
+                            address: `${q}, Русе, България`,
+                            componentRestrictions: { country: 'BG' },
+                        }, (results, status) => {
+                            if (status !== 'OK' || !results?.length) {
+                                showStatusMessage('Не открихме този адрес в Google Maps. Опитайте с улица и номер.', true);
+                                return;
+                            }
+
                             const location = results[0].geometry.location;
                             deliveryMarker.setVisible(true);
                             setPoint(location.lat(), location.lng(), true);
-                            if (!addressField.value.trim()) {
-                                addressField.value = results[0].formatted_address;
-                            }
+                            addressField.value = results[0].formatted_address;
                         });
                     });
 
@@ -527,46 +539,38 @@
                     if (typeof google === 'undefined' || !google.maps) return;
                     const geocoder = new google.maps.Geocoder();
                     geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-                        if (status === 'OK' && results?.length && !addressField.value.trim()) {
+                        if (status === 'OK' && results?.length) {
                             addressField.value = results[0].formatted_address;
                         }
                     });
                 }
 
-                window.ensureGoogleMapsReady = window.ensureGoogleMapsReady || function () {
-                    if (window.__googleMapsReadyPromise) {
-                        return window.__googleMapsReadyPromise;
-                    }
-
-                    window.__googleMapsReadyPromise = new Promise((resolve, reject) => {
-                        let attempts = 0;
-                        const check = () => {
-                            attempts++;
-                            if (typeof google !== 'undefined' && google.maps && typeof google.maps.Map === 'function') {
-                                resolve(google.maps);
-                                return;
-                            }
-                            if (attempts >= 150) {
-                                reject(new Error('Google Maps failed'));
-                                return;
-                            }
-                            setTimeout(check, 100);
-                        };
-                        check();
-                    });
-
-                    return window.__googleMapsReadyPromise;
+                window.initCheckoutGoogleMap = function () {
+                    initGoogleMap();
                 };
 
-                window.ensureGoogleMapsReady()
-                    .then(() => initGoogleMap())
-                    .catch(() => {
-                        zoneStatus.classList.remove('hidden');
-                        zoneStatus.className = 'mt-2 text-sm text-brand-600';
-                        zoneStatus.textContent = 'Картата не се зареди. Проверете GOOGLE_MAPS_API_KEY.';
-                        updateTotals();
-                    });
+                window.handleCheckoutGoogleMapsError = function () {
+                    updateTotals();
+                    showMapMessage('Google Maps не се зареди. Проверете API ключа и разрешените домейни в Google Cloud.');
+                };
+
+                window.gm_authFailure = function () {
+                    updateTotals();
+                    showMapMessage('Google Maps API ключът не е разрешен за този домейн или API услугата не е активирана.');
+                };
+
+                if (!hasGoogleMapsKey) {
+                    updateTotals();
+                    showMapMessage('Липсва GOOGLE_MAPS_API_KEY в конфигурацията.');
+                }
             })();
         </script>
+        @if ($googleMapsKey)
+            <script
+                src="https://maps.googleapis.com/maps/api/js?key={{ $googleMapsKey }}&language=bg&region=BG&callback=initCheckoutGoogleMap&loading=async&auth_referrer_policy=origin"
+                async
+                defer
+                onerror="window.handleCheckoutGoogleMapsError && window.handleCheckoutGoogleMapsError()"></script>
+        @endif
     @endpush
 @endsection
