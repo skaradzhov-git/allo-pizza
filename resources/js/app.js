@@ -79,7 +79,73 @@ function enableDragScroll(track) {
     }, true);
 }
 
+function initMobileMenu() {
+    const menu = document.getElementById('mobile-menu');
+    const panel = document.getElementById('mobile-menu-panel');
+    const backdrop = document.getElementById('mobile-menu-backdrop');
+    const openButton = document.getElementById('mobile-menu-open');
+    const closeButton = document.getElementById('mobile-menu-close');
+
+    if (!menu || !panel || !backdrop || !openButton || !closeButton) {
+        return;
+    }
+
+    let isOpen = false;
+
+    const openMenu = () => {
+        if (isOpen) {
+            return;
+        }
+
+        isOpen = true;
+        menu.classList.remove('hidden');
+        menu.setAttribute('aria-hidden', 'false');
+        openButton.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('overflow-hidden');
+
+        requestAnimationFrame(() => {
+            backdrop.classList.remove('opacity-0');
+            panel.classList.remove('translate-x-full');
+        });
+    };
+
+    const closeMenu = () => {
+        if (!isOpen) {
+            return;
+        }
+
+        isOpen = false;
+        menu.setAttribute('aria-hidden', 'true');
+        openButton.setAttribute('aria-expanded', 'false');
+        backdrop.classList.add('opacity-0');
+        panel.classList.add('translate-x-full');
+        document.body.classList.remove('overflow-hidden');
+
+        window.setTimeout(() => {
+            if (!isOpen) {
+                menu.classList.add('hidden');
+            }
+        }, 300);
+    };
+
+    openButton.addEventListener('click', openMenu);
+    closeButton.addEventListener('click', closeMenu);
+    backdrop.addEventListener('click', closeMenu);
+
+    menu.querySelectorAll('[data-mobile-menu-close]').forEach((element) => {
+        element.addEventListener('click', closeMenu);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && isOpen) {
+            closeMenu();
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    initMobileMenu();
+
     document.querySelectorAll('[data-slider-track]').forEach((track) => {
         enableDragScroll(track);
     });
