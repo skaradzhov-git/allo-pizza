@@ -18,6 +18,10 @@ class NewOrderAlert extends Component
 
     public function mount(): void
     {
+        if (! auth()->user()?->isAdministrator()) {
+            return;
+        }
+
         $this->queue = Order::query()
             ->where('status', OrderStatus::New)
             ->orderBy('id')

@@ -30,6 +30,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->loginRouteSlug('user/login')
             ->brandName('Allo! Pizza')
             ->brandLogo(asset('images/logo-wide.png'))
             ->brandLogoHeight('2.25rem')
@@ -60,7 +61,15 @@ class AdminPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,
-                fn () => view('filament.hooks.new-order-alert'),
+                function () {
+                    $user = auth()->user();
+
+                    if (! $user?->isAdministrator()) {
+                        return '';
+                    }
+
+                    return view('filament.hooks.new-order-alert');
+                },
             )
             ->broadcasting()
             ->viteTheme('resources/css/filament/admin/theme.css')

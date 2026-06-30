@@ -61,6 +61,35 @@ class NewOrderAlertTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_new_order_alert_does_not_load_orders_for_guests(): void
+    {
+        Order::factory()->create(['status' => OrderStatus::New]);
+
+        Livewire::test(NewOrderAlert::class)
+            ->assertSet('currentOrder', null)
+            ->assertSet('queue', []);
+    }
+
+    public function test_new_order_alert_does_not_load_orders_for_non_administrators(): void
+    {
+        $customer = User::factory()->create(['role' => UserRole::Customer]);
+        Order::factory()->create(['status' => OrderStatus::New]);
+
+        Livewire::actingAs($customer)
+            ->test(NewOrderAlert::class)
+            ->assertSet('currentOrder', null)
+            ->assertSet('queue', []);
+    }
+
+    public function test_admin_login_is_available_at_custom_path(): void
+    {
+        $this->get('/admin/user/login')
+            ->assertOk();
+
+        $this->get('/admin/login')
+            ->assertNotFound();
+    }
+
     public function test_new_order_alert_loads_pending_orders_on_mount(): void
     {
         $admin = User::factory()->administrator()->create();
