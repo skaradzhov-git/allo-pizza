@@ -136,7 +136,18 @@ bash scripts/cpanel-deploy.sh
 /home/CPANEL_USER/allo-pizza/public
 ```
 
-### Следващ deploy след push към GitHub
+### Автоматичен deploy при `git pull`
+
+На hosting-а инсталирайте Git hook-а еднократно:
+
+```bash
+cd ~/allo-pizza
+bash scripts/install-cpanel-git-pull-deploy-hook.sh
+```
+
+След това всеки успешен `git pull` автоматично ще изпълнява `scripts/cpanel-deploy.sh`.
+
+### Ръчен deploy след push към GitHub
 
 ```bash
 cd ~/allo-pizza
