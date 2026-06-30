@@ -83,6 +83,79 @@ GET  /api/orders/{id}
 php artisan test
 ```
 
+## Deploy към cPanel shared hosting
+
+GitHub repo:
+
+```bash
+https://github.com/skaradzhov-git/allo-pizza.git
+```
+
+### Първо качване
+
+1. В cPanel създайте MySQL database и database user.
+2. В Terminal клонирайте проекта извън `public_html`, например:
+
+```bash
+cd ~
+git clone https://github.com/skaradzhov-git/allo-pizza.git allo-pizza
+cd allo-pizza
+cp .env.example .env
+```
+
+3. Настройте `.env` за production:
+
+```dotenv
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://your-domain.com
+
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=cpanel_database_name
+DB_USERNAME=cpanel_database_user
+DB_PASSWORD=cpanel_database_password
+
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+FILESYSTEM_DISK=public
+```
+
+4. Генерирайте application key и deploy-нете:
+
+```bash
+php artisan key:generate
+bash scripts/cpanel-deploy.sh
+```
+
+5. Насочете domain document root към папката `public` на проекта. Ако cPanel не позволява document root извън `public_html`, използвайте поддомейн/addon domain с root към:
+
+```bash
+/home/CPANEL_USER/allo-pizza/public
+```
+
+### Следващ deploy след push към GitHub
+
+```bash
+cd ~/allo-pizza
+git pull
+bash scripts/cpanel-deploy.sh
+```
+
+Ако използвате cPanel Git Version Control, `.cpanel.yml` ще изпълни същия deploy script при cPanel deploy.
+
+### Важно за realtime известията
+
+Admin popup-ът за нова поръчка използва Laravel Reverb/WebSockets. На shared hosting това работи само ако hosting-ът позволява постоянно работещ процес, например:
+
+```bash
+php artisan reverb:start --host=0.0.0.0 --port=8080
+```
+
+Ако cPanel не позволява long-running процеси, realtime popup-ът трябва да се смени към polling fallback за production shared hosting.
+
 ## Backup на външен диск (по избор)
 
 ```bash
