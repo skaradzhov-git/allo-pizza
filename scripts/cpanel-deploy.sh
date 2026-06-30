@@ -33,7 +33,7 @@ echo "==> Installing PHP dependencies"
 if [ -f composer.phar ]; then
     "$PHP_BIN" composer.phar install --no-dev --optimize-autoloader --no-interaction
 elif command -v composer >/dev/null 2>&1; then
-    composer install --no-dev --optimize-autoloader --no-interaction
+    "$PHP_BIN" "$(command -v composer)" install --no-dev --optimize-autoloader --no-interaction
 elif [ -f /opt/cpanel/composer/bin/composer ]; then
     "$PHP_BIN" /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader --no-interaction
 else
